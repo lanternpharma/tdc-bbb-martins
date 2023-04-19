@@ -1,0 +1,11 @@
+
+
+
+.vscode
+
+# ignore emacs generated backup files
+*~
+
+code/data
+code/multiseed_model.ipynb
+code/multiseed_model.py

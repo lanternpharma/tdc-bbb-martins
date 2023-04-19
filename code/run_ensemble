@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+#  Copyright (c) 2023. Lantern Pharma Inc. All rights reserved.
+
+set -ex
+
+# This is the script to execute the logistic regression and deep nueral network models as base learners, then ensemble them for final predictions.
+python -u logistic_fe_aug.py "$@"
+python -u dnn_fe_aug.py "$@"
+python -u ensemble.py "$@"

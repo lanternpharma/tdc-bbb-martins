@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+#  Copyright (c) 2023. Lantern Pharma Inc. All rights reserved.
+
+set -ex
+
+# This is the script to execute the random forest model only
+python -u rf_fe_aug.py "$@"

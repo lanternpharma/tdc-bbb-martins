@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -e
+
+pip install git+https://github.com/samoturk/mol2vec
