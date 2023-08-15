@@ -1,4 +1,4 @@
-# Required package imports
+# 1) Required package imports
 
 import numpy as np
 import pandas as pd
@@ -18,6 +18,9 @@ from sklearn.utils import shuffle
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
+
+import optuna
+from sklearn.ensemble import RandomForestClassifier
 
 import pickle
 import os 
@@ -60,7 +63,7 @@ from tensorflow.keras import layers
 import keras_tuner as kt
 
 # create output folders for the results
-method_name = 'logistic'
+method_name = 'random_forest'
 
 results_path = r'../results/'
 if not os.path.exists(results_path):
@@ -82,7 +85,7 @@ valid_path = r'../results/{}/val_predictions/'.format(method_name)
 if not os.path.exists(valid_path):
     os.makedirs(valid_path)
 
-# Load data created by generate_features.py
+# 2) Load data created by generate_features.py
 
 ### Get trainval features that were generated in previous script
 full_train_data = pd.read_csv('/data/tdc_bbb_martins_ml_data/trainval.tsv', sep="\t")
@@ -322,45 +325,9 @@ full_test_data_ml_scaled.drop(correlated_numeric_to_drop, axis=1, inplace=True)
 print("Full Train/Val data shape after dropping correlated numeric features: ",full_train_data_ml_scaled.shape)
 print("Full Test data shape after dropping correlated numeric features: ",full_test_data_ml_scaled.shape)
 
-# fit kpca on trainval, transform trainval and test
+full_train_data_ml_augmented = augment_data(full_train_data_ml_scaled)
 
-from sklearn.decomposition import KernelPCA
-
-def kpca_poly_fit(df):
-    X=df.iloc[:,1:]
-    features = list(X.columns)
-    y=pd.DataFrame(df.iloc[:,0])
-    kpca = KernelPCA(kernel='poly', random_state=global_seed, remove_zero_eig=True, degree=2, gamma=0.001) # , n_components=500
-    #kpca = KernelPCA(kernel='linear', random_state=global_seed, remove_zero_eig=True) 
-    kpca.fit(X)
-    from pickle import dump
-    dump(kpca, open('../results/{}/kpca_poly.pkl'.format(method_name), 'wb'))
-    return kpca
-    
-def kpca_poly_transform(kpca, df):
-    X=df.iloc[:,1:]
-    features = list(X.columns)
-    y=pd.DataFrame(df.iloc[:,0])
-    print("y shape: ", y.shape)
-    X_pca = kpca.transform(X)
-    col = []
-    # read about what features used if found.
-    for i in range(X_pca.shape[1]):
-        col.append('kpca_' + str(i))
-    df_pca = pd.DataFrame(X_pca, columns=col)
-    df_pca.index = y.index
-    print("df_pca shape: ",df_pca.shape)
-    df_transformed = pd.concat([y, df_pca], axis=1)
-    return df_transformed
-
-# Perform KPCA on full_train_data (trainval combined), then transform full_test_data
-kpca_poly = kpca_poly_fit(full_train_data_ml_scaled)
-#kpca_poly = kpca_poly_fit(full_train_data_ml_augmented_pre_split)
-
-full_train_data_ml_kpca = kpca_poly_transform(kpca_poly, full_train_data_ml_scaled)
-full_test_data_ml_kpca = kpca_poly_transform(kpca_poly, full_test_data_ml_scaled)
-
-# 8) feature selection on trainval kpca
+# 7) feature selection on trainval
 
 def lasso_selection(df, scale_method):
     X,y,features=data_prep(df,scale=scale_method)
@@ -418,73 +385,100 @@ def lasso_selection(df, scale_method):
     features_selected = list(rankings.feature)
     return features_selected, rankings
 
-# feature selection on trainval kpca
-lasso_features_selected, lasso_fs_ranks = lasso_selection(full_train_data_ml_kpca, "None")
+# feature selection on trainval
+lasso_features_selected, lasso_fs_ranks = lasso_selection(full_train_data_ml_augmented, "None")
 print("Lasso features selected: ",len(lasso_features_selected))
 print(lasso_fs_ranks.head())
 lasso_fs_ranks.to_csv("../results/{}/feature_selection/lasso_fs_ranks.tsv".format(method_name), sep="\t", index=0)
 
+# 8) model hyperparameter search on trainval
 
-# 9) model hyperparameter search on trainval
-    
-def logistic_hyper_search(train_df, scale_method):
+import optuna
+from sklearn.ensemble import RandomForestClassifier
+
+
+def rf_hyper_search(train_df, scale_method):
     X_train,y_train, features_train=data_prep(train_df,scale=scale_method)
     print("hyper search X_train shape: ", X_train.shape)
 
     sss = StratifiedShuffleSplit(n_splits=20, test_size=0.125, random_state=global_seed)
     
-    # Perform GridSearchCV to tune best-fit LR model
-    param = {
-        'penalty': ['l2'],
-        'C': (list(np.logspace(-2, 1, 30))),
-        #'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100],
-        'class_weight': [None, 'balanced'],
-        'solver': ['liblinear', 'saga', 'sag'],
-        'random_state': [global_seed]
-    }
+    X = np.array(X_train)    
+    y = np.array(y_train).flatten()
     
-    lr_model = LogisticRegression()
-    gs_model = GridSearchCV(estimator=lr_model, param_grid=param, cv=sss, scoring='neg_log_loss', n_jobs=-1, pre_dispatch=20, error_score=0.001, verbose=1)
-    gs_model.fit(X_train, y_train)
-    print("Best Score: ", gs_model.best_score_)
-    print("Best Parameters from search: ",gs_model.best_params_)
+    # We will track how many training rounds we needed for our best score.
+    # We will use that number of rounds later.
+    best_score = 0
+    training_rounds = 10000
+
+    # Declare how we evaluate how good a set of hyperparameters are, i.e.
+    # declare an objective function.
+    def objective(trial):
+        # Specify a search space using distributions across plausible values of hyperparameters.
+        params = {
+            'n_estimators': trial.suggest_int('n_estimators', 50, 1000),
+            'max_depth': trial.suggest_int('max_depth', 4, 50),
+            'min_samples_split': trial.suggest_int('min_samples_split', 2, 150),
+            'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 60),
+        }
     
-    # Train a LR model with best parameters
-    final_model = LogisticRegression(**gs_model.best_params_)
+        # Run LightGBM for the hyperparameter values
+        rfcv = RandomForestClassifier(random_state=global_seed, **params)
     
-    #grid_results = pd.DataFrame()
-    #grid_results['rank'] = gs_model.cv_results_['rank_test_score']
-    #grid_results['mean_score'] = gs_model.cv_results_['mean_test_score']
-    #grid_results['std_score'] = gs_model.cv_results_['std_test_score']
-    #grid_results['params'] = gs_model.cv_results_['params']
-    #grid_results = pd.concat([grid_results, grid_results.params.apply(pd.Series)], axis=1)
-    #grid_results.drop('params', axis=1, inplace=True)
-    #grid_results.sort_values(by='rank', ascending=True, inplace=True)
-    #print(grid_results.head(10))
+        cv_score = np.mean(cross_val_score(rfcv, X, y, n_jobs=-1, cv=sss, scoring="neg_log_loss"))
+
+        #if cv_score > best_score:
+        #    training_rounds = len( list(rfcv.values())[0] )
+    
+        # Return metric of interest
+        return cv_score
+
+    # Suppress information only outputs - otherwise optuna is verbose and takes up a lot of space
+    optuna.logging.set_verbosity(optuna.logging.WARNING) 
+
+    from optuna.samplers import TPESampler
+    sampler = TPESampler(seed=global_seed) #just listing seed as parameter in model is not enough for reproducibility
+    study = optuna.create_study(direction='maximize', sampler=sampler)  
+    #study.enqueue_trial(tmp_best_params)
+    study.optimize(objective, n_trials=400) # limit number of searches because running all trials takes days and doesn't improve scores
+
+    print("****** Best Params from Optuna search *******")
+    print(study.best_params)
+    print("****** Best Score from Optuna search *******")
+    print(study.best_value)
+    print("****** Best Trials from Optuna search *******")
+    print(study.best_trials)
+
+    best_params = study.best_params
+    
+    
+    # Create the final model using best parameters from search
+    final_model = RandomForestClassifier(random_state=global_seed, **best_params)
 
     return final_model
         
 # Function to make predictions 
 
-def logistic_fit(model, df, scale_method):
+def rf_fit(model, df, scale_method):
     X_train,y_train, features_train=data_prep(df,scale=scale_method)
     print("fit X_train shape: ", X_train.shape)
-
     model.fit(X_train, y_train)
     return model
         
-def logistic_predict(trained_model, df, scale_method):
+def rf_predict(trained_model, df, scale_method):
     #split features and targets for modeling
     X_test,y_test, features_test=data_prep(df,scale=scale_method)
-    print("predict X_test shape: ", X_test.shape)
-
     model_prediction_prob = trained_model.predict_proba(X_test)
     model_prediction_prob = model_prediction_prob[:,1]
     model_prediction_class = [1 if pred > 0.5 else 0 for pred in model_prediction_prob]
     return model_prediction_prob, model_prediction_class
 
 #Run hyperparameter search on trainval set
-best_model = logistic_hyper_search(full_train_data_ml_kpca[['target'] + lasso_features_selected], "None")
+#best_model = rf_hyper_search(full_train_data_ml_augmented[['target'] + lasso_features_selected], "None")
+
+# commented out the hyperparameter search above, can be re-done, but hard coding the best params below now to speed up run time
+best_params = {'n_estimators': 753, 'max_depth': 39, 'min_samples_split': 2, 'min_samples_leaf': 1}
+best_model = RandomForestClassifier(random_state=global_seed, **best_params)
 
 # 10) fit model (with best trainval hyper params) with train only for each seed
 
@@ -505,17 +499,18 @@ for seed in [1, 2, 3, 4, 5]:
     valid_data_Ids = valid_split['Drug_ID']
     test_data_Ids = test_split['Drug_ID']
     
-    train_df = full_train_data_ml_kpca[full_train_data_ml_kpca.index.isin(train_data_Ids)]
-    valid_df = full_train_data_ml_kpca[full_train_data_ml_kpca.index.isin(valid_data_Ids)]
-    test_df = full_test_data_ml_kpca[full_test_data_ml_kpca.index.isin(test_data_Ids)]
+    train_df = full_train_data_ml_scaled[full_train_data_ml_scaled.index.isin(train_data_Ids)]
+    valid_df = full_train_data_ml_scaled[full_train_data_ml_scaled.index.isin(valid_data_Ids)]
+    test_df = full_test_data_ml_scaled[full_test_data_ml_scaled.index.isin(test_data_Ids)]
 
+    train_df = augment_data(train_df)
 
-    best_model_fit = logistic_fit(best_model, train_df[['target'] + lasso_features_selected], "None")
+    best_model_fit = rf_fit(best_model, train_df[['target'] + lasso_features_selected], "None")
     
     #Make predictions on the test set
     predictions = {}
     name = benchmark['name']
-    predicted_prob, predicted_class = logistic_predict(best_model_fit, test_df[['target'] + lasso_features_selected], "None")
+    predicted_prob, predicted_class = rf_predict(best_model_fit, test_df[['target'] + lasso_features_selected], "None")
     predictions[name] = predicted_prob
 
     predictions_list.append(predictions)
@@ -527,7 +522,7 @@ for seed in [1, 2, 3, 4, 5]:
     # write the above dataframe as .tsv file to use for feature selection
     test_predictions_df = pd.DataFrame({'Drug_ID':test_df.index.values, 'Actual_value':test_df.target, 'Predicted_prob':predicted_prob, 'Predicted_class':predicted_class})
     test_predictions_df.to_csv("../results/{}/test_predictions/test_predictions_seed{}.tsv".format(method_name, seed), sep="\t", index=0)
-    
+
     def get_metrics(actual,predicted_prob, predicted_class):
         AUC = roc_auc_score(actual, predicted_prob)
         Accuracy = accuracy_score(actual, predicted_class)
@@ -542,9 +537,9 @@ for seed in [1, 2, 3, 4, 5]:
     print("testf1 score: ", test_f1)
     print("sensitivity score: ", test_sensitivity)
     print("specificity score: ", test_specificity)
-
+    
     #Make predictions on the validation set
-    val_predicted_prob, val_predicted_class = logistic_predict(best_model_fit, valid_df[['target'] + lasso_features_selected], "None")
+    val_predicted_prob, val_predicted_class = rf_predict(best_model_fit, valid_df[['target'] + lasso_features_selected], "None")
     # write the above dataframe as .tsv file 
     val_predictions_df = pd.DataFrame({'Drug_ID':valid_df.index.values, 'Actual_value':valid_df.target, 'Predicted_prob':val_predicted_prob, 'Predicted_class':val_predicted_class})
     val_predictions_df.to_csv("../results/{}/val_predictions/val_predictions_seed{}.tsv".format(method_name,seed), sep="\t", index=0)
