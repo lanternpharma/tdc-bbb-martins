@@ -1,2 +1,6 @@
 metadata_version: 1
-name: tdc-bbb-martins (develop)
+name: tdc-bbb-martins
+description: Repository for feature generation and modeling to predict a drug's blood
+  brain barrier permeability for the TDC leaderboard challenge
+authors:
+- name: Rick
