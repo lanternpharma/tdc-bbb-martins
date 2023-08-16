@@ -2,35 +2,40 @@
 set -ex
 
 # This is the master script for the capsule. When you click "Reproducible Run", the code in this file will execute.
-python -u svm_linear.py "$@"
+python -u dnn.py "$@"
 
 # The previous version of this file was commented-out and follows below:
 #
-# python -u random_forest.py "$@"
+# python -u svm_linear.py "$@"
 # 
 # # The previous version of this file was commented-out and follows below:
 # #
-# # python -u logistic.py "$@"
+# # python -u random_forest.py "$@"
 # # 
 # # # The previous version of this file was commented-out and follows below:
 # # #
-# # # python -u correlated_features.py "$@"
+# # # python -u logistic.py "$@"
 # # # 
 # # # # The previous version of this file was commented-out and follows below:
 # # # #
-# # # # #!/usr/bin/env bash
+# # # # python -u correlated_features.py "$@"
 # # # # 
-# # # # #  Copyright (c) 2023. Lantern Pharma Inc. All rights reserved.
-# # # # 
-# # # # set -ex
-# # # # 
-# # # # # This is the master script for the capsule. When you click "Reproducible Run", the code in this file will execute.
-# # # # python -u logistic_fe_aug.py "$@"
-# # # # python -u rf_fe_aug.py "$@"
-# # # # python -u dnn_fe_aug.py "$@"
-# # # # python -u ensemble.py "$@"
-# # # # 
-# # # # 
+# # # # # The previous version of this file was commented-out and follows below:
+# # # # #
+# # # # # #!/usr/bin/env bash
+# # # # # 
+# # # # # #  Copyright (c) 2023. Lantern Pharma Inc. All rights reserved.
+# # # # # 
+# # # # # set -ex
+# # # # # 
+# # # # # # This is the master script for the capsule. When you click "Reproducible Run", the code in this file will execute.
+# # # # # python -u logistic_fe_aug.py "$@"
+# # # # # python -u rf_fe_aug.py "$@"
+# # # # # python -u dnn_fe_aug.py "$@"
+# # # # # python -u ensemble.py "$@"
+# # # # # 
+# # # # # 
+# # # # # 
 # # # # 
 # # # 
 # # 
