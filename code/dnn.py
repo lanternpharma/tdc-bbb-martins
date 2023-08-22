@@ -370,7 +370,7 @@ kpca_poly = kpca_poly_fit(full_train_data_ml_scaled)
 full_train_data_ml_kpca = kpca_poly_transform(kpca_poly, full_train_data_ml_scaled)
 full_test_data_ml_kpca = kpca_poly_transform(kpca_poly, full_test_data_ml_scaled)
 
-full_train_data_ml_kpca_augmented = augment_data(full_train_data_ml_kpca)
+#full_train_data_ml_kpca_augmented = augment_data(full_train_data_ml_kpca)
 
 # 8) feature selection on trainval kpca
 
@@ -475,10 +475,10 @@ def build_best_model(best_params):
         lr_factor = best_params['lr_factor']
         lr_patience = best_params['lr_factor']
         min_lr = best_params['min_lr']
-        reduce_lr = ReduceLROnPlateau(mode='auto', factor=lr_factor, patience=lr_patience, min_lr=min_lr, verbose=0)
+        reduce_lr = ReduceLROnPlateau(mode='auto', factor=lr_factor, patience=lr_patience, min_lr=min_lr, verbose=1)
     
         #create an early stopping callback
-        patience = 100
+        patience = 300
         early_stopping = [tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             min_delta=0.00001,
@@ -518,10 +518,14 @@ def build_best_model(best_params):
     
     return model, callbacks, BATCH_SIZE
 
-trial_params = {'BATCH_SIZE': 50, 'n_layers': 4, 'weight_decay': 3.615693656820377e-09, 'n_units_l0': 67, 'dropout_l0': 0.15932126617472336, 'n_units_l1': 182, 'dropout_l1': 0.17215446264982937, 'n_units_l2': 206, 'dropout_l2': 0.017888569940589672, 'n_units_l3': 208, 'dropout_l3': 0.10488163772804697, 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 1.1020663309803007e-05, 'rmsprop_weight_decay': 0.9709452329755498, 'rmsprop_momentum': 0.00922662060611357, 'lr_factor': 0.5345789634463813, 'lr_patience': 3, 'min_lr': 0.008837517917959961}
+
+# trial 63 from DNN_designer_RMS_AUC_v7.py (scored {'bbb_martins': [0.912, 0.003]})
+trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266557e-08, 'n_units_l0': 67, 'dropout_l0': 0.028971370414791225, 'activation_l0': 'relu', 'n_units_l1': 70, 'dropout_l1': 0.12208262960893639, 'activation_l1': 'tanh', 'n_units_l2': 84, 'dropout_l2': 0.038719572284664015, 'activation_l2': 'relu', 'n_units_l3': 88, 'dropout_l3': 0.16204810346172394, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.954684599370517, 'rmsprop_momentum': 0.013194737611001596, 'lr_factor': 0.4935859743089657, 'lr_patience': 3, 'min_lr': 9.329778269014784e-06}
 
 
-epochs= 1000
+
+print("trial params: ", trial_params)
+epochs= 10000
 
 # Load data to be used for training
 trainval = full_train_data_ml_kpca
