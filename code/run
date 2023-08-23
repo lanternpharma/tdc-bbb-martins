@@ -6,8 +6,8 @@ set -ex
 #python -u correlated_features.py "$@"
 #python -u logistic.py "$@"
 #python -u random_forest.py "$@"
-python -u svm_linear.py "$@"
-#python -u dnn.py "$@"
+#python -u svm_linear.py "$@"
+python -u dnn.py "$@"
 #python -u ensemble.py "$@"
 
 # The previous version of this file was commented-out and follows below:
