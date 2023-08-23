@@ -519,11 +519,26 @@ def build_best_model(best_params):
     return model, callbacks, BATCH_SIZE
 
 
+#### ******* Best from DNN Designer v7 ******* #######
 # trial 63 from DNN_designer_RMS_AUC_v7.py (scored {'bbb_martins': [0.912, 0.003]})
-trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266557e-08, 'n_units_l0': 67, 'dropout_l0': 0.028971370414791225, 'activation_l0': 'relu', 'n_units_l1': 70, 'dropout_l1': 0.12208262960893639, 'activation_l1': 'tanh', 'n_units_l2': 84, 'dropout_l2': 0.038719572284664015, 'activation_l2': 'relu', 'n_units_l3': 88, 'dropout_l3': 0.16204810346172394, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.954684599370517, 'rmsprop_momentum': 0.013194737611001596, 'lr_factor': 0.4935859743089657, 'lr_patience': 3, 'min_lr': 9.329778269014784e-06}
+#trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266557e-08, 'n_units_l0': 67, 'dropout_l0': 0.028971370414791225, 'activation_l0': 'relu', 'n_units_l1': 70, 'dropout_l1': 0.12208262960893639, 'activation_l1': 'tanh', 'n_units_l2': 84, 'dropout_l2': 0.038719572284664015, 'activation_l2': 'relu', 'n_units_l3': 88, 'dropout_l3': 0.16204810346172394, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.954684599370517, 'rmsprop_momentum': 0.013194737611001596, 'lr_factor': 0.4935859743089657, 'lr_patience': 3, 'min_lr': 9.329778269014784e-06}
+
+########################################
+#### Picked by DNN Designer v10  #######
+########################################
+
+# trial 21 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.004]})
+#trial_params = {'BATCH_SIZE': 35, 'n_layers': 4, 'weight_decay': 5.611169180553946e-07, 'n_units_l0': 195, 'dropout_l0': 0.03285232604592127, 'activation_l0': 'relu', 'n_units_l1': 61, 'dropout_l1': 0.11154088729037724, 'activation_l1': 'tanh', 'n_units_l2': 167, 'dropout_l2': 0.19793871506797636, 'activation_l2': 'tanh', 'n_units_l3': 58, 'dropout_l3': 0.17659771949649294, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9688376460078791, 'rmsprop_momentum': 0.002984609972420994, 'lr_factor': 0.5832885199652754, 'lr_patience': 4, 'min_lr': 9.964689122967635e-06}
+
+# trial 23 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.895, 0.007]})
+trial_params = {'BATCH_SIZE': 40, 'n_layers': 4, 'weight_decay': 4.739165848140964e-07, 'n_units_l0': 211, 'dropout_l0': 0.06520070393548646, 'activation_l0': 'relu', 'n_units_l1': 79, 'dropout_l1': 0.09043679689896553, 'activation_l1': 'tanh', 'n_units_l2': 181, 'dropout_l2': 0.19340535068656903, 'activation_l2': 'tanh', 'n_units_l3': 62, 'dropout_l3': 0.18018005423160657, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9723112061081753, 'rmsprop_momentum': 0.0028735123153180338, 'lr_factor': 0.6326133148278134, 'lr_patience': 4, 'min_lr': 9.944196586213679e-06}
+
+# trial 24 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.006]})
+#trial_params = {'BATCH_SIZE': 41, 'n_layers': 4, 'weight_decay': 3.939155927069406e-07, 'n_units_l0': 211, 'dropout_l0': 0.06118576791213352, 'activation_l0': 'relu', 'n_units_l1': 77, 'dropout_l1': 0.08953843572720273, 'activation_l1': 'tanh', 'n_units_l2': 217, 'dropout_l2': 0.18130422712405872, 'activation_l2': 'tanh', 'n_units_l3': 67, 'dropout_l3': 0.15171951571844683, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9732995406174811, 'rmsprop_momentum': 0.002626040588243744, 'lr_factor': 0.6409219398127897, 'lr_patience': 7, 'min_lr': 8.30344195134303e-06}
 
 
-
+########################################
+########################################
 print("trial params: ", trial_params)
 epochs= 10000
 
