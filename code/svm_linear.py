@@ -86,6 +86,10 @@ valid_path = r'../results/{}/val_predictions/'.format(method_name)
 if not os.path.exists(valid_path):
     os.makedirs(valid_path)
 
+trainval_path = r'../results/{}/trainval_oof_predictions/'.format(method_name) 
+if not os.path.exists(trainval_path):
+    os.makedirs(trainval_path)
+
 # 2) Load data created by generate_features.py
 
 ### Get trainval features that were generated in previous script
@@ -530,6 +534,8 @@ best_model = SVC(random_state=global_seed, **best_params)
 group = admet_group(path = 'data/')
 predictions_list = []
 
+results_df = pd.DataFrame(columns = ["Model", "Data Set", "AUC", "Accuracy", "f1 Score", "sensitivity", "specificity", "seed"])
+
 for seed in [1, 2, 3, 4, 5]:
     benchmark = group.get('BBB_Martins')
     name = benchmark['name']
@@ -582,12 +588,23 @@ for seed in [1, 2, 3, 4, 5]:
     print("sensitivity score: ", test_sensitivity)
     print("specificity score: ", test_specificity)
     
+    results_df.loc[len(results_df.index)] = ["SVM", "test", test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity, seed]
+
     #Make predictions on the validation set
     val_predicted_prob, val_predicted_class = svc_predict(best_model_fit, valid_df[['target'] + lasso_features_selected], "None")
     # write the above dataframe as .tsv file 
     val_predictions_df = pd.DataFrame({'Drug_ID':valid_df.index.values, 'Actual_value':valid_df.target, 'Predicted_prob':val_predicted_prob, 'Predicted_class':val_predicted_class})
     val_predictions_df.to_csv("../results/{}/val_predictions/val_predictions_seed{}.tsv".format(method_name,seed), sep="\t", index=0)
     
+    val_AUC, val_Accuracy, val_f1, val_sensitivity, val_specificity = get_metrics(val_predictions_df.Actual_value, val_predictions_df.Predicted_prob, val_predictions_df.Predicted_class)
+    print("val AUC: ", val_AUC)
+    print("val Accuracy: ",val_Accuracy)
+    print("val f1 score: ", val_f1)
+    print("sensitivity score: ", val_sensitivity)
+    print("specificity score: ", val_specificity)
+
+    results_df.loc[len(results_df.index)] = ["SVM", "validation", val_AUC, val_Accuracy, val_f1, val_sensitivity, val_specificity, seed]
+
 print(len(predictions_list))
 results = group.evaluate_many(predictions_list)
 print(results)
@@ -606,4 +623,22 @@ f.write(str(results))
 f.write("\n Average AUC, standard deviation \n")
 f.close()
 
+#Make out of fold predictions on trainval for use in ensemble
+from sklearn.model_selection import cross_val_predict
 
+trainval_predicted_prob = cross_val_predict(best_model, X=full_train_data_ml_kpca[lasso_features_selected], y=full_train_data_ml_kpca['target'], cv=10, method='predict_proba')[:,1]
+trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
+
+trainval_predictions_df = pd.DataFrame({'Drug_ID':full_train_data_ml_kpca.index.values, 'Actual_value':full_train_data_ml_kpca.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
+trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
+
+trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
+print("trainval AUC: ", trainval_AUC)
+print("trainval Accuracy: ",trainval_Accuracy)
+print("trainval f1 score: ", trainval_f1)
+print("sensitivity score: ", trainval_sensitivity)
+print("specificity score: ", trainval_specificity)
+
+results_df.loc[len(results_df.index)] = ["SVM", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
+
+results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
