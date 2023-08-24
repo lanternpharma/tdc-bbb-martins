@@ -12,7 +12,7 @@ Updates centered around removing data leakage issue during feature selection in 
 
 ### Added 
 
-1. Script to generate the features once rather than in each modeling script. Also added Getaway and WHIM 3D descriptos to feature set
+1. Script to generate the features once rather than in each modeling script. Also added Getaway and WHIM 3D descriptors to feature set
 2. Script to calculate feature correlations (binary vs binary, and numeric vs. numeric) then save a list of features to drop prior to feature selection
 3. Added SVM as an additional modeling method, also include it as a candidate model in ensembling
 
@@ -21,9 +21,9 @@ Updates centered around removing data leakage issue during feature selection in 
 1. Feature Selection: Optimized grid search method to get higher resolution in less time per run. Then increase feature selection to 20 folds for more stability. Now only run feature selection a single time on training/validation combined, instead of separate selections for each of the 5 seed train splits. 
 2. Logistic Regression: Transformed features with kernel PCA prior to modeling. Separated hyperparameter search into it's own function, and run it once with 20 folds on train/val combined. Then use best parameters to train models on all 5 seeds rather than have differently tuned models for each seed
 3. Random Forest: Separated hyperparameter search into it's own function, and run it once with 20 folds on train/val combined. Then use best parameters to train models on all 5 seeds rather than have differently tuned models for each seed
-4. DNN: Transformed features with kernel PCA prior to modeling. Created large Optuna search that functions as an optimal DNN designer, run it on 10 folds of train/val then use that same architecture and hyperparameters to train on all 5 seeds. Note that this "DNN designer" code is not included in this repo and is not run here. The optimal parameters from outside study have been set as fixed here to control run time.
-5. Ensemble: Added SVM to candidate base learners. Model selection changed from recursive elimination to best subset found with forward selection
-6. Changed environment (both Code Ocean and the conda_env.yml file) to include the mlxtend package
+4. DNN: Transformed features with kernel PCA prior to modeling. Created large Optuna search that functions as an optimal DNN designer, run it on 10 folds of train/val then use that same architecture and hyperparameters to train on all 5 seeds. Note that this "DNN designer" code is not included in this repo and is not run here. The optimal parameters from outside study have been set as fixed here to reduce run time.
+5. Ensemble: Added SVM to candidate base learners. Removed automatic base learner (feature) selection (used recursive elimination in prior versions) Base learners included as features were selected manually by looking at diversity of predictions on the validation set (logistic regression probabilities highly correlated to DNN which performed better so Logistic Regression base learner not included in ensemble to reduce overfitting)
+6. Changed environment (both Code Ocean and the conda_env.yml file) to include the mlxtend and scikeras packages
 
 ### Fixed
 

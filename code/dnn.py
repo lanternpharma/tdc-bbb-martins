@@ -701,46 +701,7 @@ f.write(str(results))
 f.write("\n Average AUC, standard deviation \n")
 f.close()
 
-#Make out of fold predictions on trainval for use in ensemble
-#from sklearn.model_selection import cross_val_predict
-#from scikeras.wrappers import KerasClassifier
 
-
-
-#trainval_oof = full_train_data_ml_kpca.copy()
-#trainval_oof_aug = augment_data(trainval_oof)
-#X_trainval = trainval_oof_aug[lasso_features_selected]
-#y_trainval = trainval_oof_aug['target']
-
-#reset_seed(global_seed)
-
-#oof_model, oof_callbacks, oof_BATCH_SIZE = build_best_model(trial_params)    
-    
-#DNN_oof = KerasClassifier(model=oof_model, epochs=epochs, batch_size=oof_BATCH_SIZE, validation_split=0.125, verbose=0, callbacks=oof_callbacks)
-
-#DNN_oof.fit(X=X_trainval, y=y_trainval)
-
-#from sklearn.model_selection import StratifiedKFold
-#skf = StratifiedKFold(n_splits=10, shuffle=False)
-
-#trainval_predicted_prob = cross_val_predict(DNN_oof, X=X_trainval, y=y_trainval, cv=2, method='predict_proba')[:,1]
-#trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
-
-#trainval_predictions_df = pd.DataFrame({'Drug_ID':trainval_oof_aug.index.values, 'Actual_value':trainval_oof_aug.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
-
-
-#trainval_predictions_df = trainval_predictions_df[trainval_predictions_df.index.str.contains("synthetic")==False]
-
-#trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
-
-#trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
-#print("trainval AUC: ", trainval_AUC)
-#print("trainval Accuracy: ",trainval_Accuracy)
-#print("trainval f1 score: ", trainval_f1)
-#print("sensitivity score: ", trainval_sensitivity)
-#print("specificity score: ", trainval_specificity)
-
-#results_df.loc[len(results_df.index)] = ["DNN", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
 
 results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
 
