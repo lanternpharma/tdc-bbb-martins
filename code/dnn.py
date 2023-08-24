@@ -96,6 +96,11 @@ trainval_path = r'../results/{}/trainval_oof_predictions/'.format(method_name)
 if not os.path.exists(trainval_path):
     os.makedirs(trainval_path)
 
+trained_models_path = r'../results/{}/trained_models/'.format(method_name) 
+if not os.path.exists(trained_models_path):
+    os.makedirs(trained_models_path)
+    
+
 # 2) Load data created by generate_features.py
 
 ### Get trainval features that were generated in previous script
@@ -146,6 +151,35 @@ def augment_data(df):
     resampled_train_data = pd.DataFrame(pd.concat([y_res, X_res], axis=1))
     #print("After OverSampling, counts of label '0': {}".format(sum(resampled_train_data.iloc[:,0] == 0)))
     #print("After OverSampling, counts of label '1': {} \n".format(sum(resampled_train_data.iloc[:,0] == 1)))
+    num_synthetic = resampled_train_data.shape[0] - df.shape[0]    
+    aug_index = list(df.index.copy())
+    for i in range(num_synthetic):
+        aug_index.append("synthetic_{}".format(i))
+    resampled_train_data.index = list(aug_index)
+    return resampled_train_data
+
+def augment_data(df):
+    print("Before OverSampling, counts of label '0': {}".format(sum(df.iloc[:,0] == 0)))
+    print("Before OverSampling, counts of label '1': {} \n".format(sum(df.iloc[:,0] == 1)))
+    sm = SVMSMOTE(random_state = 8516)
+    X_res, y_res = sm.fit_resample(df.iloc[:,1:], df.iloc[:,0].ravel())
+    y_res = pd.DataFrame(y_res, columns=['target'])
+    resampled_train_data = pd.DataFrame(pd.concat([y_res, X_res], axis=1))
+    print("After OverSampling, counts of label '0': {}".format(sum(resampled_train_data.iloc[:,0] == 0)))
+    print("After OverSampling, counts of label '1': {} \n".format(sum(resampled_train_data.iloc[:,0] == 1)))
+
+    num_synthetic = resampled_train_data.shape[0] - df.shape[0]
+    print("num_synthetic ",num_synthetic)
+    
+    aug_index = list(df.index.copy())
+    #print("aug_index before adding synthetic: ",aug_index)
+
+    for i in range(num_synthetic):
+        aug_index.append("synthetic_{}".format(i))
+    
+    #print("aug_index after adding synthetic: ",aug_index)
+
+    resampled_train_data.index = list(aug_index)
     return resampled_train_data
 
 # function to split target and features for ML inputs
@@ -442,10 +476,10 @@ lasso_fs_ranks.to_csv("../results/{}/feature_selection/lasso_fs_ranks.tsv".forma
 
 def build_best_model(best_params):
     
-    
     def create_model():
         model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Flatten())
+        model.add(tf.keras.layers.Input(shape=(len(lasso_features_selected),)))
+        #model.add(tf.keras.layers.Flatten())
         #print("n_layers: ",best_params['n_layers'])
         for i in range(best_params['n_layers']):
             #print("Neurons in Layer {}: ".format(i), best_params['n_units_l{}'.format(i)])
@@ -508,7 +542,7 @@ def build_best_model(best_params):
         return true_negatives / (possible_negatives + K.epsilon())
 
     def compile_model(model, optimizer):
-        model.compile(optimizer, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=['AUC', 'Accuracy',sensitivity,specificity])
+        model.compile(optimizer, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=['AUC', 'Accuracy'])
         #print("Model Compiled")
         return model
         
@@ -527,18 +561,7 @@ def build_best_model(best_params):
 # trial 63 from DNN_designer_RMS_AUC_v7.py (scored {'bbb_martins': [0.912, 0.003]})
 trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266557e-08, 'n_units_l0': 67, 'dropout_l0': 0.028971370414791225, 'activation_l0': 'relu', 'n_units_l1': 70, 'dropout_l1': 0.12208262960893639, 'activation_l1': 'tanh', 'n_units_l2': 84, 'dropout_l2': 0.038719572284664015, 'activation_l2': 'relu', 'n_units_l3': 88, 'dropout_l3': 0.16204810346172394, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.954684599370517, 'rmsprop_momentum': 0.013194737611001596, 'lr_factor': 0.4935859743089657, 'lr_patience': 3, 'min_lr': 9.329778269014784e-06}
 
-########################################
-#### Picked by DNN Designer v10  #######
-########################################
 
-# trial 21 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.004]})
-#trial_params = {'BATCH_SIZE': 35, 'n_layers': 4, 'weight_decay': 5.611169180553946e-07, 'n_units_l0': 195, 'dropout_l0': 0.03285232604592127, 'activation_l0': 'relu', 'n_units_l1': 61, 'dropout_l1': 0.11154088729037724, 'activation_l1': 'tanh', 'n_units_l2': 167, 'dropout_l2': 0.19793871506797636, 'activation_l2': 'tanh', 'n_units_l3': 58, 'dropout_l3': 0.17659771949649294, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9688376460078791, 'rmsprop_momentum': 0.002984609972420994, 'lr_factor': 0.5832885199652754, 'lr_patience': 4, 'min_lr': 9.964689122967635e-06}
-
-# trial 23 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.895, 0.007]})
-#trial_params = {'BATCH_SIZE': 40, 'n_layers': 4, 'weight_decay': 4.739165848140964e-07, 'n_units_l0': 211, 'dropout_l0': 0.06520070393548646, 'activation_l0': 'relu', 'n_units_l1': 79, 'dropout_l1': 0.09043679689896553, 'activation_l1': 'tanh', 'n_units_l2': 181, 'dropout_l2': 0.19340535068656903, 'activation_l2': 'tanh', 'n_units_l3': 62, 'dropout_l3': 0.18018005423160657, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9723112061081753, 'rmsprop_momentum': 0.0028735123153180338, 'lr_factor': 0.6326133148278134, 'lr_patience': 4, 'min_lr': 9.944196586213679e-06}
-
-# trial 24 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.006]})
-#trial_params = {'BATCH_SIZE': 41, 'n_layers': 4, 'weight_decay': 3.939155927069406e-07, 'n_units_l0': 211, 'dropout_l0': 0.06118576791213352, 'activation_l0': 'relu', 'n_units_l1': 77, 'dropout_l1': 0.08953843572720273, 'activation_l1': 'tanh', 'n_units_l2': 217, 'dropout_l2': 0.18130422712405872, 'activation_l2': 'tanh', 'n_units_l3': 67, 'dropout_l3': 0.15171951571844683, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9732995406174811, 'rmsprop_momentum': 0.002626040588243744, 'lr_factor': 0.6409219398127897, 'lr_patience': 7, 'min_lr': 8.30344195134303e-06}
 
 
 ########################################
@@ -612,6 +635,9 @@ for seed in [1, 2, 3, 4, 5]:
 
     test_prediction_prob, test_prediction_class = dnn_predict(model, X_test)
 
+    with open("../results/{}/trained_models/model_seed_{}.pkl".format(method_name, seed), "wb") as pkl:
+        pickle.dump(model, pkl)
+
     predictions[name] = test_prediction_prob
 
     predictions_list.append(predictions)
@@ -676,9 +702,45 @@ f.write("\n Average AUC, standard deviation \n")
 f.close()
 
 #Make out of fold predictions on trainval for use in ensemble
-from sklearn.model_selection import cross_val_predict
+#from sklearn.model_selection import cross_val_predict
+#from scikeras.wrappers import KerasClassifier
 
-#### Insert oof code here after model restructure to KerasClassifier which is compatible with cross_val_predict #####
+
+
+#trainval_oof = full_train_data_ml_kpca.copy()
+#trainval_oof_aug = augment_data(trainval_oof)
+#X_trainval = trainval_oof_aug[lasso_features_selected]
+#y_trainval = trainval_oof_aug['target']
+
+#reset_seed(global_seed)
+
+#oof_model, oof_callbacks, oof_BATCH_SIZE = build_best_model(trial_params)    
+    
+#DNN_oof = KerasClassifier(model=oof_model, epochs=epochs, batch_size=oof_BATCH_SIZE, validation_split=0.125, verbose=0, callbacks=oof_callbacks)
+
+#DNN_oof.fit(X=X_trainval, y=y_trainval)
+
+#from sklearn.model_selection import StratifiedKFold
+#skf = StratifiedKFold(n_splits=10, shuffle=False)
+
+#trainval_predicted_prob = cross_val_predict(DNN_oof, X=X_trainval, y=y_trainval, cv=2, method='predict_proba')[:,1]
+#trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
+
+#trainval_predictions_df = pd.DataFrame({'Drug_ID':trainval_oof_aug.index.values, 'Actual_value':trainval_oof_aug.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
+
+
+#trainval_predictions_df = trainval_predictions_df[trainval_predictions_df.index.str.contains("synthetic")==False]
+
+#trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
+
+#trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
+#print("trainval AUC: ", trainval_AUC)
+#print("trainval Accuracy: ",trainval_Accuracy)
+#print("trainval f1 score: ", trainval_f1)
+#print("sensitivity score: ", trainval_sensitivity)
+#print("specificity score: ", trainval_specificity)
+
+#results_df.loc[len(results_df.index)] = ["DNN", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
 
 results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
 

@@ -1,4 +1,4 @@
-# hash:sha256:bbb0aa11ee61af76712a93fd8173624de5053d75729934989408395965e49be7
+# hash:sha256:0c37c047862c4417d18e717e19f52ac1f7c3f999a8daf39bacce84f7bbc3a425
 FROM registry.codeocean-ue2.radr-ai.com/codeocean/jupyterlab:3.4.4-miniconda4.12.0-python3.9-ubuntu20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -27,6 +27,7 @@ RUN pip install -U --no-cache-dir \
     pybel==0.15.5 \
     pytdc==0.3.8 \
     rdkit==2022.9.3 \
+    scikeras==0.11.0 \
     scikit-learn==1.2.0 \
     spektral==1.2.0 \
     torch-geometric==2.2.0

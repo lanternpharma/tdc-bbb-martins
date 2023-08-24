@@ -20,7 +20,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 
 import optuna
-from sklearn.ensemble import RandomForestClassifier
 
 import pickle
 import os 
@@ -33,17 +32,23 @@ print ("Current date and time : ", time_stamp)
 # Load TensorFlow for neural networks and set seeds for reproducibility
 # Set a seed value
 global_seed= 8516
-random.seed(global_seed)
-np.random.seed(global_seed)
-# 1. Set `PYTHONHASHSEED` environment variable at a fixed value
-os.environ['PYTHONHASHSEED']=str(global_seed)
-# 2. Set `python` built-in pseudo-random generator at a fixed value
-random.seed(global_seed)
-# 3. Set `numpy` pseudo-random generator at a fixed value
-np.random.seed(global_seed)
-# 4. Set `tensorflow` pseudo-random generator at a fixed value
+
 import tensorflow as tf
-tf.random.set_seed(global_seed)
+    
+def reset_seed(seed_value):
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    # 1. Set `PYTHONHASHSEED` environment variable at a fixed value
+    os.environ['PYTHONHASHSEED']=str(seed_value)
+    # 2. Set `python` built-in pseudo-random generator at a fixed value
+    random.seed(seed_value)
+    # 3. Set `numpy` pseudo-random generator at a fixed value
+    np.random.seed(seed_value)
+    # 4. Set `tensorflow` pseudo-random generator at a fixed value
+    tf.random.set_seed(seed_value)
+    tf.keras.utils.set_random_seed(seed_value)
+    
+reset_seed(global_seed)
 
 #5 Configure a new global `tensorflow` session
 from keras import backend as K
@@ -53,17 +58,19 @@ K.set_session(sess)
 
 #6 The determinism ection below ensures that the nn results will be repeatable given the same inputs
 # This may slow down performance. If you want to do many runs to look at average performance this should be removed
-tf.keras.utils.set_random_seed(global_seed)
+#tf.keras.utils.set_random_seed(global_seed)
 tf.config.experimental.enable_op_determinism()
 print(tf.__version__)
 from keras.callbacks import History, EarlyStopping
 from tensorflow.keras import regularizers
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers, initializers
 import keras_tuner as kt
 
+keras.initializers.RandomUniform(seed=global_seed)
+
 # create output folders for the results
-method_name = 'random_forest'
+method_name = 'dnn'
 
 results_path = r'../results/'
 if not os.path.exists(results_path):
@@ -88,10 +95,6 @@ if not os.path.exists(valid_path):
 trainval_path = r'../results/{}/trainval_oof_predictions/'.format(method_name) 
 if not os.path.exists(trainval_path):
     os.makedirs(trainval_path)
-
-trained_models_path = r'../results/{}/trained_models/'.format(method_name) 
-if not os.path.exists(trained_models_path):
-    os.makedirs(trained_models_path)
 
 # 2) Load data created by generate_features.py
 
@@ -137,25 +140,12 @@ def relabel_target(df, dictionary):
 def augment_data(df):
     print("Before OverSampling, counts of label '0': {}".format(sum(df.iloc[:,0] == 0)))
     print("Before OverSampling, counts of label '1': {} \n".format(sum(df.iloc[:,0] == 1)))
-    sm = SVMSMOTE(random_state = 8516)
+    sm = SVMSMOTE(random_state = 8516, sampling_strategy = {0: int(1.5*sum(df.iloc[:,0] == 1)), 1: sum(df.iloc[:,0] == 1)})
     X_res, y_res = sm.fit_resample(df.iloc[:,1:], df.iloc[:,0].ravel())
     y_res = pd.DataFrame(y_res, columns=['target'])
     resampled_train_data = pd.DataFrame(pd.concat([y_res, X_res], axis=1))
     print("After OverSampling, counts of label '0': {}".format(sum(resampled_train_data.iloc[:,0] == 0)))
     print("After OverSampling, counts of label '1': {} \n".format(sum(resampled_train_data.iloc[:,0] == 1)))
-
-    num_synthetic = resampled_train_data.shape[0] - df.shape[0]
-    print("num_synthetic ",num_synthetic)
-    
-    aug_index = list(df.index.copy())
-    #print("aug_index before adding synthetic: ",aug_index)
-
-    for i in range(num_synthetic):
-        aug_index.append("synthetic_{}".format(i))
-    
-    #print("aug_index after adding synthetic: ",aug_index)
-
-    resampled_train_data.index = list(aug_index)
     return resampled_train_data
 
 # function to split target and features for ML inputs
@@ -346,9 +336,47 @@ full_test_data_ml_scaled.drop(correlated_numeric_to_drop, axis=1, inplace=True)
 print("Full Train/Val data shape after dropping correlated numeric features: ",full_train_data_ml_scaled.shape)
 print("Full Test data shape after dropping correlated numeric features: ",full_test_data_ml_scaled.shape)
 
-full_train_data_ml_augmented = augment_data(full_train_data_ml_scaled)
+# 7) fit kpca on trainval, transform trainval and test
 
-# 7) feature selection on trainval
+from sklearn.decomposition import KernelPCA
+
+def kpca_poly_fit(df):
+    X=df.iloc[:,1:]
+    features = list(X.columns)
+    y=pd.DataFrame(df.iloc[:,0])
+    kpca = KernelPCA(kernel='poly', random_state=global_seed, remove_zero_eig=True, degree=2, gamma=0.001) # , n_components=500
+    #kpca = KernelPCA(kernel='poly', random_state=global_seed, remove_zero_eig=True, degree=5, n_components=500) 
+    kpca.fit(X)
+    from pickle import dump
+    dump(kpca, open('../results/{}/kpca_poly.pkl'.format(method_name), 'wb'))
+    return kpca
+    
+def kpca_poly_transform(kpca, df):
+    X=df.iloc[:,1:]
+    features = list(X.columns)
+    y=pd.DataFrame(df.iloc[:,0])
+    print("y shape: ", y.shape)
+    X_pca = kpca.transform(X)
+    col = []
+    # read about what features used if found.
+    for i in range(X_pca.shape[1]):
+        col.append('kpca_' + str(i))
+    df_pca = pd.DataFrame(X_pca, columns=col)
+    df_pca.index = y.index
+    print("df_pca shape: ",df_pca.shape)
+    df_transformed = pd.concat([y, df_pca], axis=1)
+    return df_transformed
+
+# Perform KPCA on full_train_data (trainval combined), then transform full_test_data
+kpca_poly = kpca_poly_fit(full_train_data_ml_scaled)
+#kpca_poly = kpca_poly_fit(full_train_data_ml_augmented_pre_split)
+
+full_train_data_ml_kpca = kpca_poly_transform(kpca_poly, full_train_data_ml_scaled)
+full_test_data_ml_kpca = kpca_poly_transform(kpca_poly, full_test_data_ml_scaled)
+
+#full_train_data_ml_kpca_augmented = augment_data(full_train_data_ml_kpca)
+
+# 8) feature selection on trainval kpca
 
 def lasso_selection(df, scale_method):
     X,y,features=data_prep(df,scale=scale_method)
@@ -406,105 +434,139 @@ def lasso_selection(df, scale_method):
     features_selected = list(rankings.feature)
     return features_selected, rankings
 
-# feature selection on trainval
-lasso_features_selected, lasso_fs_ranks = lasso_selection(full_train_data_ml_augmented, "None")
+# feature selection on trainval kpca
+lasso_features_selected, lasso_fs_ranks = lasso_selection(full_train_data_ml_kpca, "None")
 print("Lasso features selected: ",len(lasso_features_selected))
 print(lasso_fs_ranks.head())
 lasso_fs_ranks.to_csv("../results/{}/feature_selection/lasso_fs_ranks.tsv".format(method_name), sep="\t", index=0)
 
-# 8) model hyperparameter search on trainval
 
-import optuna
-from sklearn.ensemble import RandomForestClassifier
-
-
-def rf_hyper_search(train_df, scale_method):
-    X_train,y_train, features_train=data_prep(train_df,scale=scale_method)
-    print("hyper search X_train shape: ", X_train.shape)
-
-    sss = StratifiedShuffleSplit(n_splits=20, test_size=0.125, random_state=global_seed)
-    
-    X = np.array(X_train)    
-    y = np.array(y_train).flatten()
-    
-    # We will track how many training rounds we needed for our best score.
-    # We will use that number of rounds later.
-    best_score = 0
-    training_rounds = 10000
-
-    # Declare how we evaluate how good a set of hyperparameters are, i.e.
-    # declare an objective function.
-    def objective(trial):
-        # Specify a search space using distributions across plausible values of hyperparameters.
-        params = {
-            'n_estimators': trial.suggest_int('n_estimators', 50, 1000),
-            'max_depth': trial.suggest_int('max_depth', 4, 50),
-            'min_samples_split': trial.suggest_int('min_samples_split', 2, 150),
-            'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 60),
-        }
-    
-        # Run LightGBM for the hyperparameter values
-        rfcv = RandomForestClassifier(random_state=global_seed, **params)
-    
-        cv_score = np.mean(cross_val_score(rfcv, X, y, n_jobs=-1, cv=sss, scoring="neg_log_loss"))
-
-        #if cv_score > best_score:
-        #    training_rounds = len( list(rfcv.values())[0] )
-    
-        # Return metric of interest
-        return cv_score
-
-    # Suppress information only outputs - otherwise optuna is verbose and takes up a lot of space
-    optuna.logging.set_verbosity(optuna.logging.WARNING) 
-
-    from optuna.samplers import TPESampler
-    sampler = TPESampler(seed=global_seed) #just listing seed as parameter in model is not enough for reproducibility
-    study = optuna.create_study(direction='maximize', sampler=sampler)  
-    #study.enqueue_trial(tmp_best_params)
-    study.optimize(objective, n_trials=400) # limit number of searches because running all trials takes days and doesn't improve scores
-
-    print("****** Best Params from Optuna search *******")
-    print(study.best_params)
-    print("****** Best Score from Optuna search *******")
-    print(study.best_value)
-    print("****** Best Trials from Optuna search *******")
-    print(study.best_trials)
-
-    best_params = study.best_params
+def build_best_model(best_params):
     
     
-    # Create the final model using best parameters from search
-    final_model = RandomForestClassifier(random_state=global_seed, **best_params)
+    def create_model():
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.Flatten())
+        #print("n_layers: ",best_params['n_layers'])
+        for i in range(best_params['n_layers']):
+            #print("Neurons in Layer {}: ".format(i), best_params['n_units_l{}'.format(i)])
+            model.add(tf.keras.layers.Dense(best_params['n_units_l{}'.format(i)], activation='relu', kernel_regularizer=regularizers.l2(best_params['weight_decay'])))
+            #print("Dropout after Layer {}: ".format(i), best_params['dropout_l{}'.format(i)])
+            model.add(tf.keras.layers.Dropout(best_params['dropout_l{}'.format(i)]))
+        model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
+        #print("Model Created")
+        return model
+    
+    def create_optimizer():
+        kwargs = {}
+        optimizer_selected = best_params['optimizer']
+        if optimizer_selected == "RMSprop":
+            kwargs["learning_rate"] = best_params['rmsprop_learning_rate']
+            kwargs["weight_decay"] = best_params['rmsprop_weight_decay']
+            kwargs["momentum"] =  best_params['rmsprop_momentum']
+        elif optimizer_selected == "Adam":
+            kwargs["learning_rate"] = best_params['adam_learning_rate']
+        elif optimizer_selected == "SGD":
+            kwargs["learning_rate"] = best_params['sgd_opt_learning_rate']
+            kwargs["momentum"] = best_params['sgd_opt_momentum']
 
-    return final_model
+        optimizer = getattr(tf.optimizers, optimizer_selected)(**kwargs)
+        #print("Optimizer Created")
+        return optimizer
+    
+    def create_callbacks():
+        #create a learning rate reducer search
+        from keras.callbacks import ReduceLROnPlateau
+        lr_factor = best_params['lr_factor']
+        lr_patience = best_params['lr_factor']
+        min_lr = best_params['min_lr']
+        reduce_lr = ReduceLROnPlateau(mode='auto', factor=lr_factor, patience=lr_patience, min_lr=min_lr, verbose=1)
+    
+        #create an early stopping callback
+        patience = 300
+        early_stopping = [tf.keras.callbacks.EarlyStopping(
+            monitor='val_loss',
+            min_delta=0.00001,
+            patience=patience,
+            verbose=1,
+            mode='min',
+            baseline=None,
+            restore_best_weights=True
+        )]
+
+        callbacks = [reduce_lr, early_stopping]
+        #print("Callbacks Created")
+        return callbacks
+    
+    def sensitivity(y_true, y_pred): 
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+        return true_positives / (possible_positives + K.epsilon())
+
+    def specificity(y_true, y_pred):
+        true_negatives = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
+        possible_negatives = K.sum(K.round(K.clip(1 - y_true, 0, 1)))
+        return true_negatives / (possible_negatives + K.epsilon())
+
+    def compile_model(model, optimizer):
+        model.compile(optimizer, loss=tf.keras.losses.BinaryCrossentropy(from_logits=False), metrics=['AUC', 'Accuracy',sensitivity,specificity])
+        #print("Model Compiled")
+        return model
         
-# Function to make predictions 
+    # Build model and optimizer.
+    built_model = create_model()
+    optimizer = create_optimizer()
+    model = compile_model(built_model, optimizer)
+    callbacks = create_callbacks()
+    
+    BATCH_SIZE = best_params['BATCH_SIZE']
+    
+    return model, callbacks, BATCH_SIZE
 
-def rf_fit(model, df, scale_method):
-    X_train,y_train, features_train=data_prep(df,scale=scale_method)
-    print("fit X_train shape: ", X_train.shape)
-    model.fit(X_train, y_train)
-    return model
-        
-def rf_predict(trained_model, df, scale_method):
-    #split features and targets for modeling
-    X_test,y_test, features_test=data_prep(df,scale=scale_method)
-    model_prediction_prob = trained_model.predict_proba(X_test)
-    model_prediction_prob = model_prediction_prob[:,1]
-    model_prediction_class = [1 if pred > 0.5 else 0 for pred in model_prediction_prob]
-    return model_prediction_prob, model_prediction_class
 
-#Run hyperparameter search on trainval set
-#best_model = rf_hyper_search(full_train_data_ml_augmented[['target'] + lasso_features_selected], "None")
+#### ******* Best from DNN Designer v7 ******* #######
+# trial 63 from DNN_designer_RMS_AUC_v7.py (scored {'bbb_martins': [0.912, 0.003]})
+trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266557e-08, 'n_units_l0': 67, 'dropout_l0': 0.028971370414791225, 'activation_l0': 'relu', 'n_units_l1': 70, 'dropout_l1': 0.12208262960893639, 'activation_l1': 'tanh', 'n_units_l2': 84, 'dropout_l2': 0.038719572284664015, 'activation_l2': 'relu', 'n_units_l3': 88, 'dropout_l3': 0.16204810346172394, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.954684599370517, 'rmsprop_momentum': 0.013194737611001596, 'lr_factor': 0.4935859743089657, 'lr_patience': 3, 'min_lr': 9.329778269014784e-06}
 
-# commented out the hyperparameter search above, can be re-done, but hard coding the best params below now to speed up run time
-best_params = {'n_estimators': 753, 'max_depth': 39, 'min_samples_split': 2, 'min_samples_leaf': 1}
-best_model = RandomForestClassifier(random_state=global_seed, **best_params)
+########################################
+#### Picked by DNN Designer v10  #######
+########################################
 
-# 10) fit model (with best trainval hyper params) with train only for each seed
+# trial 21 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.004]})
+#trial_params = {'BATCH_SIZE': 35, 'n_layers': 4, 'weight_decay': 5.611169180553946e-07, 'n_units_l0': 195, 'dropout_l0': 0.03285232604592127, 'activation_l0': 'relu', 'n_units_l1': 61, 'dropout_l1': 0.11154088729037724, 'activation_l1': 'tanh', 'n_units_l2': 167, 'dropout_l2': 0.19793871506797636, 'activation_l2': 'tanh', 'n_units_l3': 58, 'dropout_l3': 0.17659771949649294, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9688376460078791, 'rmsprop_momentum': 0.002984609972420994, 'lr_factor': 0.5832885199652754, 'lr_patience': 4, 'min_lr': 9.964689122967635e-06}
 
-#fit model (with best trainval hyper params) with train only for each seed
+# trial 23 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.895, 0.007]})
+#trial_params = {'BATCH_SIZE': 40, 'n_layers': 4, 'weight_decay': 4.739165848140964e-07, 'n_units_l0': 211, 'dropout_l0': 0.06520070393548646, 'activation_l0': 'relu', 'n_units_l1': 79, 'dropout_l1': 0.09043679689896553, 'activation_l1': 'tanh', 'n_units_l2': 181, 'dropout_l2': 0.19340535068656903, 'activation_l2': 'tanh', 'n_units_l3': 62, 'dropout_l3': 0.18018005423160657, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9723112061081753, 'rmsprop_momentum': 0.0028735123153180338, 'lr_factor': 0.6326133148278134, 'lr_patience': 4, 'min_lr': 9.944196586213679e-06}
 
+# trial 24 from DNN_designer_RMS_AUC_v10.py (scored {'bbb_martins': [0.901, 0.006]})
+#trial_params = {'BATCH_SIZE': 41, 'n_layers': 4, 'weight_decay': 3.939155927069406e-07, 'n_units_l0': 211, 'dropout_l0': 0.06118576791213352, 'activation_l0': 'relu', 'n_units_l1': 77, 'dropout_l1': 0.08953843572720273, 'activation_l1': 'tanh', 'n_units_l2': 217, 'dropout_l2': 0.18130422712405872, 'activation_l2': 'tanh', 'n_units_l3': 67, 'dropout_l3': 0.15171951571844683, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 0.001, 'rmsprop_weight_decay': 0.9732995406174811, 'rmsprop_momentum': 0.002626040588243744, 'lr_factor': 0.6409219398127897, 'lr_patience': 7, 'min_lr': 8.30344195134303e-06}
+
+
+########################################
+#Picked by DNN_designer_RMS_v11_kpca_no_fs.py
+
+# trial 31 from DNN_designer_RMS_v11_kpca_no_fs.py (scored {'bbb_martins': [0.901, 0.006]})
+#trial_params = {'BATCH_SIZE': 64, 'n_layers': 4, 'weight_decay': 5.611654640916228e-07, 'n_units_l0': 221, 'dropout_l0': 0.10544785178171406, 'activation_l0': 'relu', 'n_units_l1': 201, 'dropout_l1': 0.0673432592978363, 'activation_l1': 'tanh', 'n_units_l2': 119, 'dropout_l2': 0.11953138030741352, 'activation_l2': 'tanh', 'n_units_l3': 201, 'dropout_l3': 0.16745823408084465, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 1e-05, 'rmsprop_weight_decay': 0.9689632251444065, 'rmsprop_momentum': 0.01142186096472865, 'lr_factor': 0.5736197586102744, 'lr_patience': 7, 'min_lr': 2.2802079091962418e-07}
+
+
+########################################
+print("trial params: ", trial_params)
+epochs= 10000
+
+# Load data to be used for training
+trainval = full_train_data_ml_kpca
+
+    
+# Load test data to be used for training
+test = full_test_data_ml_kpca
+
+    
+loss=[]
+AUC=[]
+accuracy=[]
+sensitivity=[]
+specificity=[]
+    
 ### Get the TDC train and test split Drug_IDs to split similarly
 group = admet_group(path = 'data/')
 predictions_list = []
@@ -512,6 +574,7 @@ predictions_list = []
 results_df = pd.DataFrame(columns = ["Model", "Data Set", "AUC", "Accuracy", "f1 Score", "sensitivity", "specificity", "seed"])
 
 for seed in [1, 2, 3, 4, 5]:
+    reset_seed(global_seed)
     benchmark = group.get('BBB_Martins')
     name = benchmark['name']
     
@@ -521,32 +584,51 @@ for seed in [1, 2, 3, 4, 5]:
     train_data_Ids = train_split['Drug_ID']
     valid_data_Ids = valid_split['Drug_ID']
     test_data_Ids = test_split['Drug_ID']
+        
+    train = full_train_data_ml_kpca[full_train_data_ml_kpca.index.isin(train_data_Ids)]
+    validation = full_train_data_ml_kpca[full_train_data_ml_kpca.index.isin(valid_data_Ids)]
+    test = full_test_data_ml_kpca[full_test_data_ml_kpca.index.isin(test_data_Ids)]
     
-    train_df = full_train_data_ml_scaled[full_train_data_ml_scaled.index.isin(train_data_Ids)]
-    valid_df = full_train_data_ml_scaled[full_train_data_ml_scaled.index.isin(valid_data_Ids)]
-    test_df = full_test_data_ml_scaled[full_test_data_ml_scaled.index.isin(test_data_Ids)]
-
-    train_df = augment_data(train_df)
-
-    best_model_fit = rf_fit(best_model, train_df[['target'] + lasso_features_selected], "None")
+    print("train shape: ", train.shape)
+    print("validation shape: ", validation.shape)
+    print("test shape: ", test.shape)
     
-    #Make predictions on the test set
+    train = augment_data(train)
+    
+    print("train shape after augmenting: ", train.shape)
+
+    
+        
+    # To use selected features (from non-aug trainval) only
+    X_train,y_train, features_train=data_prep(train[['target'] + lasso_features_selected],scale="None")
+    X_val,y_val, features_train=data_prep(validation[['target'] + lasso_features_selected],scale="None")
+    X_test,y_test, features_test=data_prep(test[['target'] + lasso_features_selected],scale="None")
+    print("X_train shape: ",X_train.shape)
+
+    model, callbacks, BATCH_SIZE = build_best_model(trial_params)    
+    model.fit(X_train, y_train, epochs=epochs, batch_size=BATCH_SIZE, validation_data=[X_val, y_val], verbose=1, callbacks=callbacks)
+
+    def dnn_predict(trained_model, features):
+        model_prediction_prob = trained_model.predict(features, verbose=2)
+        model_prediction_class = [1 if pred > 0.5 else 0 for pred in model_prediction_prob]
+        model_prediction_prob = [item for sublist in model_prediction_prob for item in sublist]
+        return model_prediction_prob, model_prediction_class
+
     predictions = {}
     name = benchmark['name']
-    predicted_prob, predicted_class = rf_predict(best_model_fit, test_df[['target'] + lasso_features_selected], "None")
-    predictions[name] = predicted_prob
 
-    with open("../results/{}/trained_models/model_seed_{}.pkl".format(method_name, seed), "wb") as pkl:
-        pickle.dump(best_model_fit, pkl)
+    test_prediction_prob, test_prediction_class = dnn_predict(model, X_test)
+
+    predictions[name] = test_prediction_prob
 
     predictions_list.append(predictions)
-    
-    test_auc = roc_auc_score(full_test_data_ml['target'], predicted_prob, average='weighted')
+
+    test_auc = roc_auc_score(test['target'], test_prediction_prob, average='weighted')
     print("\n Test AUC seed {}: ".format(seed),test_auc, "\n")
-    
-    # write output files
+
+        # write output files
     # write the above dataframe as .tsv file to use for feature selection
-    test_predictions_df = pd.DataFrame({'Drug_ID':test_df.index.values, 'Actual_value':test_df.target, 'Predicted_prob':predicted_prob, 'Predicted_class':predicted_class})
+    test_predictions_df = pd.DataFrame({'Drug_ID':test.index.values, 'Actual_value':test.target, 'Predicted_prob':test_prediction_prob, 'Predicted_class':test_prediction_class})
     test_predictions_df.to_csv("../results/{}/test_predictions/test_predictions_seed{}.tsv".format(method_name, seed), sep="\t", index=0)
 
     def get_metrics(actual,predicted_prob, predicted_class):
@@ -564,12 +646,13 @@ for seed in [1, 2, 3, 4, 5]:
     print("sensitivity score: ", test_sensitivity)
     print("specificity score: ", test_specificity)
 
-    results_df.loc[len(results_df.index)] = ["RF", "test", test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity, seed]
+    results_df.loc[len(results_df.index)] = ["DNN", "test", test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity, seed]
 
     #Make predictions on the validation set
-    val_predicted_prob, val_predicted_class = rf_predict(best_model_fit, valid_df[['target'] + lasso_features_selected], "None")
-    # write the above dataframe as .tsv file 
-    val_predictions_df = pd.DataFrame({'Drug_ID':valid_df.index.values, 'Actual_value':valid_df.target, 'Predicted_prob':val_predicted_prob, 'Predicted_class':val_predicted_class})
+    val_prediction_prob, val_prediction_class = dnn_predict(model, X_val)
+
+        # write the above dataframe as .tsv file to use for feature selection
+    val_predictions_df = pd.DataFrame({'Drug_ID':validation.index.values, 'Actual_value':validation.target, 'Predicted_prob':val_prediction_prob, 'Predicted_class':val_prediction_class})
     val_predictions_df.to_csv("../results/{}/val_predictions/val_predictions_seed{}.tsv".format(method_name,seed), sep="\t", index=0)
 
     val_AUC, val_Accuracy, val_f1, val_sensitivity, val_specificity = get_metrics(val_predictions_df.Actual_value, val_predictions_df.Predicted_prob, val_predictions_df.Predicted_class)
@@ -579,7 +662,7 @@ for seed in [1, 2, 3, 4, 5]:
     print("sensitivity score: ", val_sensitivity)
     print("specificity score: ", val_specificity)
 
-    results_df.loc[len(results_df.index)] = ["RF", "validation", val_AUC, val_Accuracy, val_f1, val_sensitivity, val_specificity, seed]
+    results_df.loc[len(results_df.index)] = ["DNN", "validation", val_AUC, val_Accuracy, val_f1, val_sensitivity, val_specificity, seed]
 
 print(len(predictions_list))
 results = group.evaluate_many(predictions_list)
@@ -600,29 +683,10 @@ f.write("\n Average AUC, standard deviation \n")
 f.close()
 
 #Make out of fold predictions on trainval for use in ensemble
-#from sklearn.model_selection import cross_val_predict
+from sklearn.model_selection import cross_val_predict
 
-#trainval_oof = full_train_data_ml_scaled.copy()
-#trainval_oof_aug = augment_data(trainval_oof)
-#X_trainval = trainval_oof_aug[lasso_features_selected]
-#y_trainval = trainval_oof_aug['target']
-
-#trainval_predicted_prob = cross_val_predict(best_model, X=X_trainval, y=y_trainval, cv=20, method='predict_proba')[:,1]
-#trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
-
-#trainval_predictions_df = pd.DataFrame({'Drug_ID':trainval_oof_aug.index.values, 'Actual_value':trainval_oof_aug.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
-
-#trainval_predictions_df = trainval_predictions_df[trainval_predictions_df.index.str.contains("synthetic")==False]
-
-#trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
-
-#trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
-#print("trainval AUC: ", trainval_AUC)
-#print("trainval Accuracy: ",trainval_Accuracy)
-#print("trainval f1 score: ", trainval_f1)
-#print("sensitivity score: ", trainval_sensitivity)
-#print("specificity score: ", trainval_specificity)
-
-#results_df.loc[len(results_df.index)] = ["RF", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
+#### Insert oof code here after model restructure to KerasClassifier which is compatible with cross_val_predict #####
 
 results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
+
+

@@ -5,6 +5,8 @@
 
 import os
 
+import pickle
+
 # create output folders for the results
 method_name = 'ensemble'
 
@@ -16,10 +18,17 @@ method_path = r'../results/{}/'.format(method_name)
 if not os.path.exists(method_path):
     os.makedirs(method_path)
 
+base_learner_path = r'../results/{}/base_learner_predictions/'.format(method_name) 
+if not os.path.exists(base_learner_path):
+    os.makedirs(base_learner_path)
+
 test_path = r'../results/{}/test_predictions/'.format(method_name) 
 if not os.path.exists(test_path):
     os.makedirs(test_path)
 
+trained_models_path = r'../results/{}/trained_models/'.format(method_name) 
+if not os.path.exists(trained_models_path):
+    os.makedirs(trained_models_path)
     
 import numpy as np
 import pandas as pd
@@ -89,7 +98,7 @@ def forward_selection(df):
     model = LogisticRegression()
 
     sfs = SFS(model, 
-          k_features=(1,X.shape[1]), 
+          k_features=(2,X.shape[1]), 
           forward=True, 
           floating=False, 
           scoring='neg_mean_absolute_error',
@@ -116,17 +125,17 @@ def train_logistic(train_df, scale_method):
     param = {
         #'penalty': ['elasticnet'],
         #'penalty': ['l1','l2','elasticnet'],
-        'penalty': ['l2'],
-        'C': np.logspace(-2,0,20),
+        #'penalty': ['l2'],
+        #'C': np.logspace(-2,0,20),
         'class_weight': ['None', 'balanced'], #['None', 'balanced']
-        'solver': ['saga'],
-        #'solver': ['saga', 'lbfgs', 'liblinear'],
+        #'solver': ['saga'],
+        'solver': ['saga', 'lbfgs', 'liblinear'],
         #'l1_ratio': np.logspace(-2,0,20),
         #'tol': [1e-1, 1e-2, 1e-3, 1e-4, 1e-5],
         'random_state': [global_seed]
     }
     lr_model = LogisticRegression()
-    gs_model = GridSearchCV(estimator=lr_model, param_grid=param, cv=sss)
+    gs_model = GridSearchCV(estimator=lr_model, param_grid=param, cv=sss, scoring='roc_auc')
     gs_model.fit(X_train, y_train)
     print("Best Parameters from search: ",gs_model.best_params_)
     # Train a LR model with best parameters
@@ -156,12 +165,14 @@ predictions_list = []
 ### use the code provided in the TDC website
 #### https://tdcommons.ai/benchmark/overview/
 
+results_df = pd.DataFrame(columns = ["Model", "Data Set", "AUC", "Accuracy", "f1 Score", "sensitivity", "specificity", "seed"])
+
 for seed in [1, 2, 3, 4, 5]:
     #benchmark = group.get('BBB_Martins')
     #name = benchmark['name']
 
     #Load validation set base learner predictions to train ensemble model
-    logistic_val_pred = pd.read_csv("../results/logistic/val_predictions/val_predictions_seed{}.tsv".format(seed), sep="\t")
+    #logistic_val_pred = pd.read_csv("../results/logistic/val_predictions/val_predictions_seed{}.tsv".format(seed), sep="\t")
     rf_val_pred = pd.read_csv("../results/random_forest/val_predictions/val_predictions_seed{}.tsv".format(seed), sep="\t")
     dnn_val_pred = pd.read_csv("../results/dnn/val_predictions/val_predictions_seed{}.tsv".format(seed), sep="\t")
     svm_val_pred = pd.read_csv("../results/svm_linear/val_predictions/val_predictions_seed{}.tsv".format(seed), sep="\t")
@@ -169,13 +180,13 @@ for seed in [1, 2, 3, 4, 5]:
     base_learner_preds_val.rename(columns={'Predicted_prob': 'dnn_pred'}, inplace=True)
     base_learner_preds_val['rf_pred'] = rf_val_pred.Predicted_prob
     base_learner_preds_val['svm_pred'] = svm_val_pred.Predicted_prob
-    base_learner_preds_val['logistic_pred'] = logistic_val_pred.Predicted_prob
+    #base_learner_preds_val['logistic_pred'] = logistic_val_pred.Predicted_prob
     base_learner_preds_val.set_index(list(base_learner_preds_val.columns[[0]]),inplace=True)
-    base_learner_preds_val.to_csv("{}/base_learner_preds_val_seed{}.tsv".format(results_path, seed), sep="\t", index=0)
+    base_learner_preds_val.to_csv("{}/base_learner_preds_val_seed{}.tsv".format(base_learner_path, seed), sep="\t", index=0)
 
         
     #Load test set base learner predictions as inputs to the ensemble model
-    logistic_test_pred = pd.read_csv("../results/logistic/test_predictions/test_predictions_seed{}.tsv".format(seed), sep="\t")
+    #logistic_test_pred = pd.read_csv("../results/logistic/test_predictions/test_predictions_seed{}.tsv".format(seed), sep="\t")
     rf_test_pred = pd.read_csv("../results/random_forest/test_predictions/test_predictions_seed{}.tsv".format(seed), sep="\t")
     dnn_test_pred = pd.read_csv("../results/dnn/test_predictions/test_predictions_seed{}.tsv".format(seed), sep="\t")
     svm_test_pred = pd.read_csv("../results/svm_linear/test_predictions/test_predictions_seed{}.tsv".format(seed), sep="\t")
@@ -183,28 +194,33 @@ for seed in [1, 2, 3, 4, 5]:
     base_learner_preds_test.rename(columns={'Predicted_prob': 'dnn_pred'}, inplace=True)
     base_learner_preds_test['rf_pred'] = rf_test_pred.Predicted_prob
     base_learner_preds_test['svm_pred'] = svm_test_pred.Predicted_prob
-    base_learner_preds_test['logistic_pred'] = logistic_test_pred.Predicted_prob
+    #base_learner_preds_test['logistic_pred'] = logistic_test_pred.Predicted_prob
     base_learner_preds_test.set_index(list(base_learner_preds_test.columns[[0]]),inplace=True)
-    base_learner_preds_test.to_csv("{}/base_learner_preds_test_seed{}.tsv".format(results_path,seed), sep="\t", index=0)
+    base_learner_preds_test.to_csv("{}/base_learner_preds_test_seed{}.tsv".format(base_learner_path,seed), sep="\t", index=0)
 
     
     print(base_learner_preds_val.shape)
     print(base_learner_preds_test.shape)
 
     # Select the base learner models to be used in Ensemble
-    base_learners_selected, baselearner_fs_ranks = forward_selection(base_learner_preds_val)
-    print("# Base Learners Selected: ",len(base_learners_selected))
-    print(baselearner_fs_ranks.head(30))
-    baselearner_fs_ranks.to_csv("{}/baselearner_fs_ranks.tsv".format(results_path), sep="\t", index=0)
+    #base_learners_selected, baselearner_fs_ranks = forward_selection(base_learner_preds_val)
+    #print("# Base Learners Selected: ",len(base_learners_selected))
+    #print(baselearner_fs_ranks.head(30))
+    #baselearner_fs_ranks.to_csv("{}/baselearner_fs_ranks.tsv".format(results_path), sep="\t", index=0)
 
 
-    all_models = base_learner_preds_val.columns[1:]
-    print("All models considered: ",all_models)
-    models_not_selected = set(all_models) - set(base_learners_selected)
-    print("Models eliminated from Ensemble: ",models_not_selected)
+    #all_models = base_learner_preds_val.columns[1:]
+    #print("All models considered: ",all_models)
+    #models_not_selected = set(all_models) - set(base_learners_selected)
+    #print("Models eliminated from Ensemble: ",models_not_selected)
 
-    base_learner_preds_val_selected = base_learner_preds_val.copy().drop(models_not_selected, axis=1)
-    base_learner_preds_test_selected = base_learner_preds_test.copy().drop(models_not_selected, axis=1)
+    # Use all models rather than drop any through selection
+    base_learner_preds_val_selected = base_learner_preds_val.copy()
+    base_learner_preds_test_selected = base_learner_preds_test.copy()
+
+    #Two lines commented out below to skip model selection    
+    #base_learner_preds_val_selected = base_learner_preds_val.copy().drop(models_not_selected, axis=1)
+    #base_learner_preds_test_selected = base_learner_preds_test.copy().drop(models_not_selected, axis=1)
     print("Models used in ensemble: ", base_learner_preds_val_selected.columns[1:])
 
     #Train the ensemble model with validation set base learner predicted probabilities
@@ -221,6 +237,9 @@ for seed in [1, 2, 3, 4, 5]:
     predicted_prob, predicted_class = logistic_predict(ensemble_model, base_learner_preds_test_selected, "None")
     predictions[name] = predicted_prob
 
+    with open("../results/{}/trained_models/model_seed_{}.pkl".format(method_name, seed), "wb") as pkl:
+        pickle.dump(ensemble_model, pkl)
+
     predictions_list.append(predictions)
     
     # write output files
@@ -230,6 +249,24 @@ for seed in [1, 2, 3, 4, 5]:
 
     test_auc = roc_auc_score(base_learner_preds_test['Actual_value'], predicted_prob, average='weighted')
     print("\n Test AUC seed {}: ".format(seed),test_auc, "\n")
+
+    def get_metrics(actual,predicted_prob, predicted_class):
+        AUC = roc_auc_score(actual, predicted_prob)
+        Accuracy = accuracy_score(actual, predicted_class)
+        f1 = f1_score(actual, predicted_class)
+        sensitivity = recall_score(actual, predicted_class, pos_label=1)
+        specificity = recall_score(actual, predicted_class, pos_label=0)
+        return AUC, Accuracy, f1, sensitivity, specificity
+
+    test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity = get_metrics(test_predictions_df.Actual_value,                test_predictions_df.Predicted_prob, test_predictions_df.Predicted_class)
+    print("test AUC: ", test_AUC)
+    print("test Accuracy: ",test_Accuracy)
+    print("testf1 score: ", test_f1)
+    print("sensitivity score: ", test_sensitivity)
+    print("specificity score: ", test_specificity)
+    
+    results_df.loc[len(results_df.index)] = ["Ensemble", "test", test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity, seed]
+
     
 print(len(predictions_list))
 results = group.evaluate_many(predictions_list)
@@ -248,3 +285,6 @@ f.write("Results from the TDC group.evaluate_many(predictions_list) function: \n
 f.write(str(results))
 f.write("\n Average AUC, standard deviation \n")
 f.close()
+
+results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
+

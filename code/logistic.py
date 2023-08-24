@@ -86,7 +86,9 @@ trainval_path = r'../results/{}/trainval_oof_predictions/'.format(method_name)
 if not os.path.exists(trainval_path):
     os.makedirs(trainval_path)
 
-
+trained_models_path = r'../results/{}/trained_models/'.format(method_name) 
+if not os.path.exists(trained_models_path):
+    os.makedirs(trained_models_path)
 
 # Load data created by generate_features.py
 
@@ -138,6 +140,19 @@ def augment_data(df):
     resampled_train_data = pd.DataFrame(pd.concat([y_res, X_res], axis=1))
     print("After OverSampling, counts of label '0': {}".format(sum(resampled_train_data.iloc[:,0] == 0)))
     print("After OverSampling, counts of label '1': {} \n".format(sum(resampled_train_data.iloc[:,0] == 1)))
+
+    num_synthetic = resampled_train_data.shape[0] - df.shape[0]
+    print("num_synthetic ",num_synthetic)
+    
+    aug_index = list(df.index.copy())
+    #print("aug_index before adding synthetic: ",aug_index)
+
+    for i in range(num_synthetic):
+        aug_index.append("synthetic_{}".format(i))
+    
+    #print("aug_index after adding synthetic: ",aug_index)
+
+    resampled_train_data.index = list(aug_index)
     return resampled_train_data
 
 # function to split target and features for ML inputs
@@ -445,7 +460,7 @@ def logistic_hyper_search(train_df, scale_method):
         'C': (list(np.logspace(-2, 1, 30))),
         #'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100],
         'class_weight': [None, 'balanced'],
-        'solver': ['liblinear', 'saga', 'sag'],
+        'solver': ['liblinear', 'lbfgs'],
         'random_state': [global_seed]
     }
     
@@ -526,6 +541,9 @@ for seed in [1, 2, 3, 4, 5]:
     predicted_prob, predicted_class = logistic_predict(best_model_fit, test_df[['target'] + lasso_features_selected], "None")
     predictions[name] = predicted_prob
 
+    with open("../results/{}/trained_models/model_seed_{}.pkl".format(method_name, seed), "wb") as pkl:
+        pickle.dump(best_model_fit, pkl)
+
     predictions_list.append(predictions)
     
     test_auc = roc_auc_score(full_test_data_ml['target'], predicted_prob, average='weighted')
@@ -589,21 +607,21 @@ f.close()
 
 
 #Make out of fold predictions on trainval for use in ensemble
-from sklearn.model_selection import cross_val_predict
+#from sklearn.model_selection import cross_val_predict
 
-trainval_predicted_prob = cross_val_predict(best_model, X=full_train_data_ml_kpca[lasso_features_selected], y=full_train_data_ml_kpca['target'], cv=10, method='predict_proba')[:,1]
-trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
+#trainval_predicted_prob = cross_val_predict(best_model, X=full_train_data_ml_kpca[lasso_features_selected], y=full_train_data_ml_kpca['target'], cv=2, method='predict_proba')[:,1]
+#trainval_predicted_class = [1 if pred > 0.5 else 0 for pred in trainval_predicted_prob]
 
-trainval_predictions_df = pd.DataFrame({'Drug_ID':full_train_data_ml_kpca.index.values, 'Actual_value':full_train_data_ml_kpca.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
-trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
+#trainval_predictions_df = pd.DataFrame({'Drug_ID':full_train_data_ml_kpca.index.values, 'Actual_value':full_train_data_ml_kpca.target, 'Predicted_prob':trainval_predicted_prob, 'Predicted_class':trainval_predicted_class})
+#trainval_predictions_df.to_csv("../results/{}/trainval_oof_predictions/trainval_oof_predictions.tsv".format(method_name), sep="\t", index=0)
 
-trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
-print("trainval AUC: ", trainval_AUC)
-print("trainval Accuracy: ",trainval_Accuracy)
-print("trainval f1 score: ", trainval_f1)
-print("sensitivity score: ", trainval_sensitivity)
-print("specificity score: ", trainval_specificity)
+#trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity = get_metrics(trainval_predictions_df.Actual_value, trainval_predictions_df.Predicted_prob, trainval_predictions_df.Predicted_class)
+#print("trainval AUC: ", trainval_AUC)
+#print("trainval Accuracy: ",trainval_Accuracy)
+#print("trainval f1 score: ", trainval_f1)
+#print("sensitivity score: ", trainval_sensitivity)
+#print("specificity score: ", trainval_specificity)
 
-results_df.loc[len(results_df.index)] = ["Logistic", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
+#results_df.loc[len(results_df.index)] = ["Logistic", "trainval_oof", trainval_AUC, trainval_Accuracy, trainval_f1, trainval_sensitivity, trainval_specificity, 'combined']
 
 results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
