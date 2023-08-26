@@ -72,24 +72,24 @@ keras.initializers.RandomUniform(seed=global_seed)
 # create output folders for the results
 method_name = 'correlated_features'
 
-results_path = r'../results/'
+results_path = r'/data/{}/'.format(method_name)
 if not os.path.exists(results_path):
     os.makedirs(results_path)
 
-method_path = r'../results/{}/'.format(method_name) 
-if not os.path.exists(method_path):
-    os.makedirs(method_path)
+input_path = r'/data/tdc_bbb_martins_ml_data/'
+if not os.path.exists(results_path):
+    os.makedirs(results_path)
 
 # 2) Load data created by generate_features.py
 
 ### Get trainval features that were generated in previous script
-full_train_data = pd.read_csv('/data/tdc_bbb_martins_ml_data/trainval.tsv', sep="\t")
+full_train_data = pd.read_csv('{}trainval.tsv'.format(input_path), sep="\t")
 #Asset included index as first column, remove it before further processing
 full_train_data = full_train_data.iloc[: , 1:]
 print("Full Train/Val data shape: ",full_train_data.shape)
 
 ### Get trainval features that were generated in previous script
-full_test_data = pd.read_csv('/data/tdc_bbb_martins_ml_data/test.tsv', sep="\t")
+full_test_data = pd.read_csv('{}test.tsv'.format(input_path), sep="\t")
 #Asset included index as first column, remove it before further processing
 full_test_data = full_test_data.iloc[: , 1:]
 print("Full Test data shape: ",full_train_data.shape)
@@ -169,7 +169,7 @@ def fit_scaler(df,scale):
     elif (scale=="MinMaxScaler"):
         scaler = MinMaxScaler()
         scaler.fit(X[X.columns])
-    dump(scaler, open('../results/{}/scaler.pkl'.format(method_name), 'wb'))
+    dump(scaler, open('{}scaler.pkl'.format(results_path), 'wb'))
     
 
 def scaler_transform(df, scaler):
@@ -245,10 +245,10 @@ full_test_data_ml, target_dictionary = format_df_to_ml(full_test_data)
 neg_sig_fingerprints, pos_sig_fingerprints = get_fingerprint_lists(full_train_data_ml)
 
 neg_sig_fingerprints_df = pd.DataFrame(neg_sig_fingerprints, columns=['neg_sig_fingerprints'])
-neg_sig_fingerprints_df.to_csv("../results/{}/neg_sig_fingerprints.tsv".format(method_name), sep="\t", index=0)
+#neg_sig_fingerprints_df.to_csv("../results/{}/neg_sig_fingerprints.tsv".format(method_name), sep="\t", index=0)
 
 pos_sig_fingerprints_df = pd.DataFrame(pos_sig_fingerprints, columns=['pos_sig_fingerprints'])
-pos_sig_fingerprints_df.to_csv("../results/{}/pos_sig_fingerprints.tsv".format(method_name), sep="\t", index=0)
+#pos_sig_fingerprints_df.to_csv("../results/{}/pos_sig_fingerprints.tsv".format(method_name), sep="\t", index=0)
 
 full_train_data_ml = get_num_fingerprints(full_train_data_ml, neg_sig_fingerprints, pos_sig_fingerprints)
 full_test_data_ml = get_num_fingerprints(full_test_data_ml, neg_sig_fingerprints, pos_sig_fingerprints)
@@ -294,8 +294,8 @@ full_test_data_ml = full_test_data_imputed
 
 # Fit scaler on full_train_data (trainval combined) then transform test set too
 fit_scaler(full_train_data_ml, "StandardScaler")
-full_train_data_ml_scaled = scaler_transform(full_train_data_ml, '../results/{}/scaler.pkl'.format(method_name))
-full_test_data_ml_scaled = scaler_transform(full_test_data_ml, '../results/{}/scaler.pkl'.format(method_name)) 
+full_train_data_ml_scaled = scaler_transform(full_train_data_ml, '{}scaler.pkl'.format(results_path))
+full_test_data_ml_scaled = scaler_transform(full_test_data_ml, '{}scaler.pkl'.format(results_path)) 
 
 full_train_data_ml_scaled.head()
 
@@ -410,7 +410,7 @@ print("# Correlated Fingerprints to drop: ",len(correlated_fingerprints))
 print("Fingerprints to drop: ",*correlated_fingerprints)
 
 import pickle
-with open("{}correlated_fingerprints_to_drop.pkl".format(method_path), "wb") as fp:
+with open("{}correlated_fingerprints_to_drop.pkl".format(results_path), "wb") as fp:
     pickle.dump(correlated_fingerprints, fp)
 
 
@@ -448,6 +448,6 @@ full_test_data_ml_scaled.drop(correlated_numeric_features, axis=1, inplace=True)
 print("Full Train/Val data shape after dropping correlated numeric features: ",full_train_data_ml_scaled.shape)
 print("Full Test data shape after dropping correlated numeric features: ",full_test_data_ml_scaled.shape)
 
-with open("{}correlated_numeric_to_drop.pkl".format(method_path), "wb") as num_corr:
+with open("{}correlated_numeric_to_drop.pkl".format(results_path), "wb") as num_corr:
     pickle.dump(correlated_numeric_features, num_corr)
 

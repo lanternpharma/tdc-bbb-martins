@@ -4,27 +4,11 @@
 import os
 
 # create output folders for the results
-method_name = 'logistic_fe_aug'
+method_name = 'tdc_bbb_martins_ml_data'
 
-results_path = r'../results/'
+results_path = r'/data/{}/'.format(method_name)
 if not os.path.exists(results_path):
     os.makedirs(results_path)
-
-method_path = r'../results/{}/'.format(method_name) 
-if not os.path.exists(method_path):
-    os.makedirs(method_path)
-
-fs_path = r'../results/{}/feature_selection/'.format(method_name) 
-if not os.path.exists(fs_path):
-    os.makedirs(fs_path)
-
-test_path = r'../results/{}/test_predictions/'.format(method_name) 
-if not os.path.exists(test_path):
-    os.makedirs(test_path)
-
-valid_path = r'../results/{}/val_predictions/'.format(method_name) 
-if not os.path.exists(valid_path):
-    os.makedirs(valid_path)
 
 # import RDKit ----------------------------------------------------------------
 from rdkit import Chem
@@ -340,7 +324,7 @@ def autocor_3d(df):
     # Returns 3D Autocorrelation descriptors vector
     # Chem.rdMolDescriptors.CalcAUTOCORR3D(data_smile['mol'][1])
     
-    df['3d_mol'].apply(lambda x: AllChem.EmbedMolecule(x, maxAttempts = 100, useRandomCoords = True, randomSeed = global_seed))
+    df['3d_mol'].apply(lambda x: AllChem.EmbedMolecule(x, maxAttempts = 10000, useRandomCoords = True, randomSeed = global_seed))
     df['3d_mol'].apply(lambda x: Chem.RemoveHs(x))
     
     # temp_vec = Chem.rdMolDescriptors.CalcAUTOCORR3D(data_smile['3d_mol'][1977])
@@ -789,6 +773,6 @@ print("Full test data shape: ",full_test_data.shape)
 from sklearn.decomposition import KernelPCA
 
 
-full_train_data.to_csv("../results/trainval.tsv", sep="\t", index=1)
-full_test_data.to_csv("../results/test.tsv", sep="\t", index=1)
+full_train_data.to_csv("{}trainval.tsv".format(results_path), sep="\t", index=1)
+full_test_data.to_csv("{}test.tsv".format(results_path), sep="\t", index=1)
 

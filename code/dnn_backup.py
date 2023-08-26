@@ -548,6 +548,8 @@ trial_params = {'BATCH_SIZE': 57, 'n_layers': 4, 'weight_decay': 1.5973504936266
 # trial 31 from DNN_designer_RMS_v11_kpca_no_fs.py (scored {'bbb_martins': [0.901, 0.006]})
 #trial_params = {'BATCH_SIZE': 64, 'n_layers': 4, 'weight_decay': 5.611654640916228e-07, 'n_units_l0': 221, 'dropout_l0': 0.10544785178171406, 'activation_l0': 'relu', 'n_units_l1': 201, 'dropout_l1': 0.0673432592978363, 'activation_l1': 'tanh', 'n_units_l2': 119, 'dropout_l2': 0.11953138030741352, 'activation_l2': 'tanh', 'n_units_l3': 201, 'dropout_l3': 0.16745823408084465, 'activation_l3': 'relu', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 1e-05, 'rmsprop_weight_decay': 0.9689632251444065, 'rmsprop_momentum': 0.01142186096472865, 'lr_factor': 0.5736197586102744, 'lr_patience': 7, 'min_lr': 2.2802079091962418e-07}
 
+# trial 97 from DNN_designer_RMS_v11_kpca_no_fs.py (scored )
+#trial_params = {'BATCH_SIZE': 64, 'n_layers': 4, 'weight_decay': 3.3077969498377493e-07, 'n_units_l0': 202, 'dropout_l0': 0.11817714029119776, 'activation_l0': 'relu', 'n_units_l1': 248, 'dropout_l1': 0.0642577428035087, 'activation_l1': 'relu', 'n_units_l2': 122, 'dropout_l2': 0.12438164439815164, 'activation_l2': 'relu', 'n_units_l3': 177, 'dropout_l3': 0.17794307554210653, 'activation_l3': 'tanh', 'optimizer': 'RMSprop', 'rmsprop_learning_rate': 1e-05, 'rmsprop_weight_decay': 0.9731650434139923, 'rmsprop_momentum': 0.013055122241423113, 'lr_factor': 0.5538362575719089, 'lr_patience': 8, 'min_lr': 4.1932917888329434e-07}
 
 ########################################
 print("trial params: ", trial_params)
@@ -604,6 +606,12 @@ for seed in [1, 2, 3, 4, 5]:
     X_val,y_val, features_train=data_prep(validation[['target'] + lasso_features_selected],scale="None")
     X_test,y_test, features_test=data_prep(test[['target'] + lasso_features_selected],scale="None")
     print("X_train shape: ",X_train.shape)
+
+    # To use all features (no feature selection)
+    #X_train,y_train, features_train=data_prep(train,scale="None")
+    #X_val,y_val, features_train=data_prep(validation,scale="None")
+    #X_test,y_test, features_test=data_prep(test,scale="None")
+    #print("X_train shape: ",X_train.shape)
 
     model, callbacks, BATCH_SIZE = build_best_model(trial_params)    
     model.fit(X_train, y_train, epochs=epochs, batch_size=BATCH_SIZE, validation_data=[X_val, y_val], verbose=1, callbacks=callbacks)

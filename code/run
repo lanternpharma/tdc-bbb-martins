@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-set -ex
-
-
- #python -u generate_features.py "$@"
- #python -u correlated_features.py "$@"
+ set -ex
  
- python -u logistic.py "$@"
- python -u random_forest.py "$@"
- python -u svm_linear.py "$@"
- python -u dnn.py "$@"
- python -u ensemble.py "$@"
-
+ 
+#python -u generate_features.py "$@"
+#python -u correlated_features.py "$@"
+ 
+python -u logistic.py "$@"
+python -u random_forest.py "$@"
+python -u svm_linear.py "$@"
+python -u dnn.py "$@"
+python -u ensemble.py "$@"
+ 
+ 
+ 
+ 
