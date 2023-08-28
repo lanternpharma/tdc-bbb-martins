@@ -1,3 +1,7 @@
+#Relative paths to data inputs used by this script
+data_path = '/code/data/tdc_bbb_martins_ml_data/'
+corr_feature_path = '/code/data/correlated_features/'
+
 # 1) Required package imports
 
 import numpy as np
@@ -97,13 +101,13 @@ if not os.path.exists(trained_models_path):
 # 2) Load data created by generate_features.py
 
 ### Get trainval features that were generated in previous script
-full_train_data = pd.read_csv('/data/tdc_bbb_martins_ml_data/trainval.tsv', sep="\t")
+full_train_data = pd.read_csv('{}trainval.tsv'.format(data_path), sep="\t")
 #Asset included index as first column, remove it before further processing
 full_train_data = full_train_data.iloc[: , 1:]
 print("Full Train/Val data shape: ",full_train_data.shape)
 
 ### Get trainval features that were generated in previous script
-full_test_data = pd.read_csv('/data/tdc_bbb_martins_ml_data/test.tsv', sep="\t")
+full_test_data = pd.read_csv('{}test.tsv'.format(data_path), sep="\t")
 #Asset included index as first column, remove it before further processing
 full_test_data = full_test_data.iloc[: , 1:]
 print("Full Test data shape: ",full_train_data.shape)
@@ -328,10 +332,10 @@ full_train_data_ml_scaled.head()
 
 # Drop highly correlated features (tanimoto or R > 0.95) using lists created by correlated_features.py
 
-with open("/data/tdc_bbb_martins_correlated_features/correlated_features/correlated_fingerprints_to_drop.pkl", "rb") as fp:
+with open("{}correlated_fingerprints_to_drop.pkl".format(corr_feature_path), "rb") as fp:
     correlated_fingerprints_to_drop = pickle.load(fp)
 
-with open("/data/tdc_bbb_martins_correlated_features/correlated_features/correlated_numeric_to_drop.pkl", "rb") as num_corr:
+with open("{}correlated_numeric_to_drop.pkl".format(corr_feature_path), "rb") as num_corr:
     correlated_numeric_to_drop = pickle.load(num_corr)
 
 print("full_train_data_ml_scaled columns: ",len(full_train_data_ml_scaled.columns))
