@@ -26,6 +26,10 @@ test_path = r'../results/{}/test_predictions/'.format(method_name)
 if not os.path.exists(test_path):
     os.makedirs(test_path)
 
+val_path = r'../results/{}/val_predictions/'.format(method_name) 
+if not os.path.exists(val_path):
+    os.makedirs(val_path)
+
 trained_models_path = r'../results/{}/trained_models/'.format(method_name) 
 if not os.path.exists(trained_models_path):
     os.makedirs(trained_models_path)
@@ -267,6 +271,13 @@ for seed in [1, 2, 3, 4, 5]:
     
     results_df.loc[len(results_df.index)] = ["Ensemble", "test", test_AUC, test_Accuracy, test_f1, test_sensitivity, test_specificity, seed]
 
+    val_predicted_prob, val_predicted_class = logistic_predict(ensemble_model, base_learner_preds_val_selected, "None")
+
+    # write the above dataframe as .tsv file to use for feature selection
+    val_predictions_df = pd.DataFrame({'Drug_ID':base_learner_preds_val.index.values, 'Actual_value':base_learner_preds_val.Actual_value, 'Predicted_prob':val_predicted_prob, 'Predicted_class':val_predicted_class})
+    val_predictions_df.to_csv("../results/{}/val_predictions/val_predictions_seed{}.tsv".format(method_name, seed), sep="\t", index=0)
+
+
     
 print(len(predictions_list))
 results = group.evaluate_many(predictions_list)
@@ -287,4 +298,6 @@ f.write("\n Average AUC, standard deviation \n")
 f.close()
 
 results_df.to_csv("../results/{}/model_performance.tsv".format(method_name), sep="\t", index=0)
+
+
 
