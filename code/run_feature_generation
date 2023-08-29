@@ -5,4 +5,5 @@
 set -ex
 
 # This is the script to execute the Deep Neural Network model only
-python -u dnn_fe_aug.py "$@"
+#python -u generate_features.py "$@"
+#python -u correlated_features.py "$@"
