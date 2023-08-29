@@ -1,4 +1,4 @@
-# hash:sha256:78d75661903332be100236d4be4deb600ade900ee6baa167f219a73690ad9ed6
+# hash:sha256:0c37c047862c4417d18e717e19f52ac1f7c3f999a8daf39bacce84f7bbc3a425
 FROM registry.codeocean-ue2.radr-ai.com/codeocean/jupyterlab:3.4.4-miniconda4.12.0-python3.9-ubuntu20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -22,10 +22,12 @@ RUN pip install -U --no-cache-dir \
     dgl==0.9.1 \
     ipywidgets==8.0.4 \
     karateclub==1.3.3 \
+    mlxtend==0.22.0 \
     ogb==1.3.5 \
     pybel==0.15.5 \
     pytdc==0.3.8 \
     rdkit==2022.9.3 \
+    scikeras==0.11.0 \
     scikit-learn==1.2.0 \
     spektral==1.2.0 \
     torch-geometric==2.2.0
@@ -46,13 +48,6 @@ RUN pip3 install -U --no-cache-dir \
     torch-scatter==2.1.0 \
     torch-sparse==0.6.16 \
     torchvision==0.14.1
-
-ADD "https://github.com/coder/code-server/releases/download/v4.9.0/code-server-4.9.0-linux-amd64.tar.gz" /.code-server/code-server.tar.gz
-	
-RUN cd /.code-server \
-	&& tar -xvf code-server.tar.gz \
-	&& rm code-server.tar.gz \
-	&& ln -s /.code-server/code-server-4.9.0-linux-amd64/bin/code-server  /usr/bin/code-server
 
 COPY postInstall /
 RUN /postInstall
